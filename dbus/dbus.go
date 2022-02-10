@@ -107,6 +107,10 @@ func valueAsFloat(val interface{}) (float64, error) {
 	switch consumerValue := val.(type) {
 	case int:
 		return float64(consumerValue), nil
+	case int32:
+		return float64(consumerValue), nil
+	case int64:
+		return float64(consumerValue), nil
 	case float64:
 		return consumerValue, nil
 	case float32:

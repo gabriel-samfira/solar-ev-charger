@@ -74,7 +74,7 @@ func main() {
 	}
 
 	if err := dbusWorker.Start(); err != nil {
-		log.Errorf("starting dbus worker: %q", err)
+		log.Errorf("starting dbus worker: %+v", err)
 		os.Exit(1)
 	}
 

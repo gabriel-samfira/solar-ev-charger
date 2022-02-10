@@ -49,7 +49,6 @@ type Worker struct {
 func (w *Worker) syncState() error {
 	var stationAmps uint64
 	var desiredState bool = true
-	var availableAmps uint64
 
 	var totalConsumption float64
 	var totalProduction float64
@@ -64,40 +63,59 @@ func (w *Worker) syncState() error {
 	}
 
 	householdConsumption := totalConsumption - chargerConsumption
+	// available watts after we substract household usage
 	available := uint64(totalProduction - householdConsumption)
 	if available <= 0 {
+		// We're consuming more than we're producing
 		stationAmps = 0
 	} else {
+		// We have some excess. Convert to amps.
 		stationAmps = available / w.cfg.ElectricalPresure
 	}
 
-	if availableAmps < uint64(w.cfg.MinAmpThreshold) {
+	if stationAmps < uint64(w.cfg.MinAmpThreshold) {
+		// We're producing less than the minimum we want to set on the station.
 		stationAmps = uint64(w.cfg.MinAmpThreshold)
 		if w.cfg.ToggleStationOnThreshold {
+			// If toggle is enabled, this is where we turn off the station.
 			desiredState = false
 		}
 	}
 
-	if availableAmps > uint64(w.cfg.MaxAmpLimit) {
+	var curAmpSetting uint64
+	if w.chargerState.CurrentAmpSetting >= 0 {
+		curAmpSetting = uint64(w.chargerState.CurrentAmpSetting)
+	}
+
+	if stationAmps > uint64(w.cfg.MaxAmpLimit) {
+		// We have more power than we can set on the station. Cap it to configured maximum.
 		stationAmps = uint64(w.cfg.MaxAmpLimit)
 	}
 
+	log.Debugf("Desired state is %v, amp is %v", desiredState, stationAmps)
+	log.Debugf("current amp setting (%d) differs from desired state (%d)", curAmpSetting, stationAmps)
+
 	if desiredState && !w.chargerState.Active {
+		// If toggle_station_on_threshold is disabled, we'll always try to start the station.
+		// The default for desiredState is true.
 		if err := w.chargerClient.Start(); err != nil {
 			return errors.Wrap(err, "starting charger")
 		}
 	}
 
-	log.Infof("Desired state is %v, amp is %v", desiredState, stationAmps)
-
 	if !desiredState && w.chargerState.Active {
-		if err := w.chargerClient.Stop(); err != nil {
-			return errors.Wrap(err, "stopping charger")
+		if w.cfg.ToggleStationOnThreshold {
+			// If toggle_station_on_threshold is disabled, we'll never try to stop the station.
+			if err := w.chargerClient.Stop(); err != nil {
+				return errors.Wrap(err, "stopping charger")
+			}
 		}
 	}
 
-	if err := w.chargerClient.SetAmp(stationAmps); err != nil {
-		return errors.Wrap(err, "setting station amps")
+	if curAmpSetting != stationAmps {
+		if err := w.chargerClient.SetAmp(stationAmps); err != nil {
+			return errors.Wrap(err, "setting station amps")
+		}
 	}
 	return nil
 }

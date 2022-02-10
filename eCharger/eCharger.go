@@ -48,9 +48,10 @@ type Worker struct {
 	closed chan struct{}
 	quit   chan struct{}
 
-	stateChanged chan params.ChargerState
-	status       chargerStatus
-	mux          sync.Mutex
+	stateChanged     chan params.ChargerState
+	status           chargerStatus
+	stateInitialized bool
+	mux              sync.Mutex
 
 	cfg config.Config
 
@@ -112,6 +113,9 @@ func (w *Worker) mqttNewMessageHandler(client mqtt.Client, msg mqtt.Message) {
 }
 
 func (w *Worker) connectMQTT() (mqtt.Client, error) {
+	if err := w.initState(); err != nil {
+		return nil, errors.Wrap(err, "initializing state")
+	}
 	opts, err := w.cfg.Charger.MQTT.ClientOptions()
 	if err != nil {
 		return nil, errors.Wrap(err, "fetching client options")
@@ -212,24 +216,22 @@ func (w *Worker) initState() error {
 	w.mux.Lock()
 	defer w.mux.Unlock()
 
+	if w.stateInitialized {
+		return nil
+	}
+
 	status, err := w.fetchStatusFromAPI()
 	if err != nil {
 		return errors.Wrap(err, "initializing state")
 	}
 	w.status = status
+	w.stateInitialized = true
+	w.mqttTopic = fmt.Sprintf("go-eCharger/%s/status", w.status.SerialNumber)
 	return nil
 }
 
 func (w *Worker) Start() error {
-	if err := w.initState(); err != nil {
-		return errors.Wrap(err, "initializing state")
-	}
-	w.mqttTopic = fmt.Sprintf("go-eCharger/%s/status", w.status.SerialNumber)
-
 	if w.cfg.Charger.UseMQTT {
-		if w.cfg.Charger.MQTT.Broker != w.status.MQTTServer {
-			log.Warningf("The charger broker is %s and our mqtt settings indicate %s as a broker. We may not be able to communicate with the charger.", w.status.MQTTServer, w.cfg.Charger.MQTT.Broker)
-		}
 		go w.loopMQTT()
 	} else {
 		go w.loopHTTP()
