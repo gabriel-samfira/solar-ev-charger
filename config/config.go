@@ -37,9 +37,11 @@ type Config struct {
 	// MaxAmpLimit is the maximum aperage we can set on the EV charging
 	// station.
 	MaxAmpLimit uint `toml:"max_amp_limit"`
-	// MinAmpCutoff is the amperage threshold where we turn off the EV
-	// charging station.
-	MinAmpCutoff uint `toml:"minimum_amp_cutoff"`
+	// MinAmpThreshold is the minimum amps we will set on the station.
+	MinAmpThreshold uint `toml:"minimum_amp_threshold"`
+	// ToggleStationOnThreshold will turn the station on or off if MinAmpThreshold
+	// dips bellow the configured value.
+	ToggleStationOnThreshold bool `toml:"toggle_station_on_threshold"`
 	// BackoffThreshold is the minimum amount of time we allow between updates
 	// to the EV charging station. Updates from dbus come frequently, and
 	// values can vary quite a lot based on cloud cover. We don't want to

@@ -1,6 +1,7 @@
 electrical_presure = 230
 max_amp_limit = 20
-minimum_amp_cutoff = 6
+minimum_amp_threshold = 6
+toggle_station_on_threshold = false
 backoff_interval = 5
 # Leave log_file commented out to log to standard output.
 # log_file = "/tmp/solar-ev-charger.log"

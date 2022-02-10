@@ -227,6 +227,9 @@ func (w *Worker) Start() error {
 	w.mqttTopic = fmt.Sprintf("go-eCharger/%s/status", w.status.SerialNumber)
 
 	if w.cfg.Charger.UseMQTT {
+		if w.cfg.Charger.MQTT.Broker != w.status.MQTTServer {
+			log.Warningf("The charger broker is %s and our mqtt settings indicate %s as a broker. We may not be able to communicate with the charger.", w.status.MQTTServer, w.cfg.Charger.MQTT.Broker)
+		}
 		go w.loopMQTT()
 	} else {
 		go w.loopHTTP()

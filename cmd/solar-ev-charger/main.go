@@ -11,6 +11,7 @@ import (
 	"solar-ev-charger/eCharger"
 	"solar-ev-charger/params"
 	"solar-ev-charger/util"
+	"solar-ev-charger/worker"
 
 	"github.com/juju/loggo"
 )
@@ -87,5 +88,17 @@ func main() {
 		log.Errorf("starting charger worker: %q", err)
 		os.Exit(1)
 	}
+
+	stateWorker, err := worker.NewWorker(ctx, cfg, statusUpdates, chargerStatus)
+	if err != nil {
+		log.Errorf("error creating state worker: %q", err)
+		os.Exit(1)
+	}
+
+	if err := stateWorker.Start(); err != nil {
+		log.Errorf("starting state worker: %q", err)
+		os.Exit(1)
+	}
+
 	<-ctx.Done()
 }
