@@ -3,18 +3,20 @@ package dbus
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	dbus "github.com/godbus/dbus/v5"
+	"github.com/juju/loggo"
 	"github.com/pkg/errors"
 
 	"solar-ev-charger/config"
 	"solar-ev-charger/params"
 )
 
-func NewDBusWorker(ctx context.Context, cfg *config.Config, stateChan chan params.State) (*Worker, error) {
+var log = loggo.GetLogger("sevc.dbus")
+
+func NewDBusWorker(ctx context.Context, cfg *config.Config, stateChan chan params.DBusState) (*Worker, error) {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		return nil, errors.Wrap(err, "creating dbus connection")
@@ -24,7 +26,7 @@ func NewDBusWorker(ctx context.Context, cfg *config.Config, stateChan chan param
 		return nil, errors.Wrap(err, "validating config")
 	}
 
-	state := params.State{
+	state := params.DBusState{
 		Consumers: map[string]float64{},
 		Producers: map[string]float64{},
 	}
@@ -40,11 +42,6 @@ func NewDBusWorker(ctx context.Context, cfg *config.Config, stateChan chan param
 		backoff:      cfg.BackoffThreshold,
 		stateChanged: stateChan,
 	}
-
-	if err := worker.initState(); err != nil {
-		return nil, errors.Wrap(err, "initializing state")
-	}
-
 	return worker, nil
 }
 
@@ -58,9 +55,9 @@ type Worker struct {
 	consumers    []config.Consumer
 
 	mut   sync.Mutex
-	state params.State
+	state params.DBusState
 
-	stateChanged chan params.State
+	stateChanged chan params.DBusState
 
 	backoff uint
 }
@@ -102,7 +99,7 @@ func (w *Worker) fetchValueFromDBus(dbusInterface, path string) (interface{}, er
 	if err != nil {
 		return ret, errors.Wrapf(err, "fetching %s from dbus", path)
 	}
-	fmt.Printf(">> Got %v (%T) for %s\n", ret, ret, path)
+	log.Debugf("got %v (%T) for %s", ret, ret, path)
 	return ret, nil
 }
 
@@ -120,18 +117,6 @@ func valueAsFloat(val interface{}) (float64, error) {
 }
 
 func (w *Worker) dbusLoop() {
-	var rules = []string{
-		"type='signal',member='ItemsChanged',path='/',interface='com.victronenergy.BusItem'",
-	}
-	busObj := w.conn.BusObject()
-	var flag uint = 0
-
-	call := busObj.Call("org.freedesktop.DBus.Monitoring.BecomeMonitor", 0, rules, flag)
-	if call.Err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to become monitor:", call.Err)
-		os.Exit(1)
-	}
-
 	c := make(chan *dbus.Message, 10)
 	w.conn.Eavesdrop(c)
 
@@ -149,7 +134,7 @@ func (w *Worker) dbusLoop() {
 				case map[string]map[string]dbus.Variant:
 					signalBody = val
 				default:
-					fmt.Printf("got invalid type: %T\n", message)
+					log.Warningf("got invalid type: %T", message)
 					continue
 				}
 
@@ -171,7 +156,7 @@ func (w *Worker) dbusLoop() {
 						if consumer.Path == key {
 							consumerValue, err := valueAsFloat(val)
 							if err != nil {
-								fmt.Printf("invalid type for %s: %T --> %s\n", key, val, err)
+								log.Warningf("invalid type for %s: %T (%s)", key, val, err)
 								continue
 							}
 							if currentValue, ok := w.state.Consumers[key]; ok && currentValue != consumerValue {
@@ -186,7 +171,7 @@ func (w *Worker) dbusLoop() {
 						if producer.Path == key {
 							consumerValue, err := valueAsFloat(val)
 							if err != nil {
-								fmt.Printf("invalid type for %s: %T --> %s\n", key, val, err)
+								log.Warningf("invalid type for %s: %T (%s)", key, val, err)
 								continue
 							}
 							newValue := consumerValue * producer.InputMultiplier
@@ -204,7 +189,7 @@ func (w *Worker) dbusLoop() {
 				select {
 				case w.stateChanged <- w.state:
 				case <-time.After(30 * time.Second):
-					fmt.Printf("failed to send state change after 30 seconds\n")
+					log.Errorf("failed to send state change after 30 seconds")
 				}
 			}
 			w.mut.Unlock()
@@ -221,6 +206,22 @@ func (w *Worker) dbusLoop() {
 }
 
 func (w *Worker) Start() error {
+	// We need to init state before we enable monitoring on the dbus connection.
+	if err := w.initState(); err != nil {
+		return errors.Wrap(err, "initializing state")
+	}
+
+	var rules = []string{
+		"type='signal',member='ItemsChanged',path='/',interface='com.victronenergy.BusItem'",
+	}
+	busObj := w.conn.BusObject()
+	var flag uint = 0
+
+	call := busObj.Call("org.freedesktop.DBus.Monitoring.BecomeMonitor", 0, rules, flag)
+	if call.Err != nil {
+		return errors.Wrap(call.Err, "becoming monitor")
+	}
+
 	go w.dbusLoop()
 	return nil
 }

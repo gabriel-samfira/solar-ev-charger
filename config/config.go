@@ -5,7 +5,12 @@ import (
 	"net"
 
 	"github.com/BurntSushi/toml"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/pkg/errors"
+)
+
+const (
+	ClientID = "solar-ev-charger"
 )
 
 func NewConfig(cfgFile string) (*Config, error) {
@@ -40,8 +45,12 @@ type Config struct {
 	// values can vary quite a lot based on cloud cover. We don't want to
 	// change amperage to the charging station too frequently.
 	BackoffThreshold uint `toml:"backoff_interval"`
-	// StationAddress is the API endpoint of the charging station.
-	StationAddress string `toml:"station_ip"`
+
+	// LogFile is the path to the log on disk
+	LogFile string `toml:"log_file"`
+
+	// Charger holds the config for the charger
+	Charger Charger `toml:"eCharger"`
 }
 
 func (c *Config) Validate() error {
@@ -69,9 +78,8 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	ip := net.ParseIP(c.StationAddress)
-	if ip == nil {
-		return fmt.Errorf("invalid station IP address: %s", c.StationAddress)
+	if err := c.Charger.Validate(); err != nil {
+		return errors.Wrap(err, "validating charger")
 	}
 
 	return nil
@@ -110,5 +118,73 @@ type Consumer struct {
 }
 
 func (c *Consumer) Validate() error {
+	return nil
+}
+
+type Charger struct {
+	// StationAddress is the API endpoint of the charging station.
+	StationAddress string `toml:"station_ip"`
+	// MQTT represents the MQTT settings used by the station. We need
+	// to use the same settings in this worker to be able to communicate
+	// with the station via MQTT.
+	MQTT    MQTTSettings `toml:"mqtt"`
+	UseMQTT bool         `toml:"use_mqtt"`
+}
+
+func (c *Charger) Validate() error {
+	ip := net.ParseIP(c.StationAddress)
+	if ip == nil {
+		return fmt.Errorf("invalid station IP address: %s", c.StationAddress)
+	}
+
+	if c.UseMQTT {
+		if err := c.MQTT.Validate(); err != nil {
+			return errors.Wrap(err, "validating mqtt settings")
+		}
+	}
+	return nil
+}
+
+type MQTTSettings struct {
+	Broker   string `toml:"broker"`
+	Port     int    `toml:"port"`
+	Username string `toml:"username"`
+	Password string `toml:"passsword"`
+}
+
+func (m *MQTTSettings) BrokerURI() (string, error) {
+	if err := m.Validate(); err != nil {
+		return "", errors.Wrap(err, "fetching broker URI")
+	}
+
+	uri := fmt.Sprintf("tcp://%s:%d", m.Broker, m.Port)
+	return uri, nil
+}
+
+func (m *MQTTSettings) ClientOptions() (*mqtt.ClientOptions, error) {
+	brokerURI, err := m.BrokerURI()
+	if err != nil {
+		return nil, errors.Wrap(err, "creating mqtt options")
+	}
+	opts := mqtt.NewClientOptions()
+	opts.AddBroker(brokerURI)
+	if m.Username != "" {
+		opts.SetUsername(m.Username)
+	}
+	if m.Password != "" {
+		opts.SetPassword(m.Password)
+	}
+	opts.SetClientID(ClientID)
+	return opts, nil
+}
+
+func (m *MQTTSettings) Validate() error {
+	if m.Broker == "" {
+		return fmt.Errorf("broker cannot be empty when mqtt is used")
+	}
+
+	if m.Port == 0 {
+		m.Port = 1883
+	}
 	return nil
 }

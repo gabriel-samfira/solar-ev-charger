@@ -2,7 +2,8 @@ electrical_presure = 230
 max_amp_limit = 20
 minimum_amp_cutoff = 6
 backoff_interval = 5
-station_ip = "192.168.8.11"
+# Leave log_file commented out to log to standard output.
+# log_file = "/tmp/solar-ev-charger.log"
 
 [[input_sensors]]
 dbus_interface = "com.victronenergy.battery.ttyO2"
@@ -12,3 +13,14 @@ input_sensor_multiplier = 1350
 [[consumers]]
 dbus_interface = "com.victronenergy.system"
 path = "/Ac/Consumption/L1/Power"
+
+[eCharger]
+station_ip = "192.168.8.13"
+use_mqtt = true
+
+    [eCharger.mqtt]
+    broker = "127.0.0.1"
+    port = 1883
+    # Leave commented if no authentication is required.
+    # username = ""
+    # passsword = ""

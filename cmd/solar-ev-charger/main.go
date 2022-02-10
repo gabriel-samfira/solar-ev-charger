@@ -4,17 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"os"
 	"os/signal"
 	"solar-ev-charger/config"
 	"solar-ev-charger/dbus"
+	"solar-ev-charger/eCharger"
 	"solar-ev-charger/params"
+	"solar-ev-charger/util"
 
 	"github.com/juju/loggo"
 )
 
-var log = loggo.GetLogger("sevc.cmd")
+var log = loggo.GetLogger("")
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -34,19 +35,31 @@ func main() {
 		os.Exit(1)
 	}
 
+	logWriter, err := util.GetLoggingWriter(cfg)
+	if err != nil {
+		log.Errorf("fetching log writer: %q", err)
+		os.Exit(1)
+	}
+	simpleWriter := loggo.NewSimpleWriter(logWriter, loggo.DefaultFormatter)
+	loggo.ReplaceDefaultWriter(simpleWriter)
+	log.SetLogLevel(loggo.DEBUG)
+
 	if err := cfg.Validate(); err != nil {
 		log.Errorf("error validating config: %q", err)
 		os.Exit(1)
 	}
 
-	statusUpdates := make(chan params.State, 10)
-
+	statusUpdates := make(chan params.DBusState, 10)
+	chargerStatus := make(chan params.ChargerState, 10)
 	go func() {
 		for {
 			select {
 			case s := <-statusUpdates:
 				asJs, _ := json.MarshalIndent(s, "", "  ")
-				fmt.Printf("%s\n", asJs)
+				log.Infof("%s", asJs)
+			case c := <-chargerStatus:
+				asJs, _ := json.MarshalIndent(c, "", "  ")
+				log.Infof("%s", asJs)
 			case <-ctx.Done():
 				return
 			}
@@ -64,5 +77,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	chargerWorker, err := eCharger.NewWorker(ctx, cfg, chargerStatus)
+	if err != nil {
+		log.Errorf("error creating charger worker: %q", err)
+		os.Exit(1)
+	}
+
+	if err := chargerWorker.Start(); err != nil {
+		log.Errorf("starting charger worker: %q", err)
+		os.Exit(1)
+	}
 	<-ctx.Done()
 }
