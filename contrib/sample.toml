@@ -1,0 +1,14 @@
+electrical_presure = 230
+max_amp_limit = 20
+minimum_amp_cutoff = 6
+backoff_interval = 5
+station_ip = "192.168.8.11"
+
+[[input_sensors]]
+dbus_interface = "com.victronenergy.battery.ttyO2"
+path = "/Dc/1/Voltage"
+input_sensor_multiplier = 1350
+
+[[consumers]]
+dbus_interface = "com.victronenergy.system"
+path = "/Ac/Consumption/L1/Power"
