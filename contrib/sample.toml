@@ -35,13 +35,12 @@ toggle_station_on_threshold = false
 backoff_interval = 20
 
 # log_level sets the logging level for the solar-ev-charger. Options are:
-# "debug", "info", "warning". Quotes are important.
+# "trace", "debug", "info", "warning". Quotes are important.
 log_level = "debug"
 
 # log_file is the path on disk to the log file we'll be writing to.
 # Leave log_file commented out to log to standard output.
 # log_file = "/tmp/solar-ev-charger.log"
-
 
 # input_sensors is an array of sensors we can define as a source of information
 # for power production. The double brackets means it's an array element. You can
@@ -51,6 +50,20 @@ log_level = "debug"
 [[input_sensors]]
 dbus_interface = "com.victronenergy.battery.ttyO2"
 path = "/Dc/1/Voltage"
+
+# InputMultiplier is the multiplier for the value returned by the InputSensor.
+# In most cases, your solar panel setup will have one sensor gauging
+# the solar output available at any moment. The output of your setup
+# however, depends on the number of solar panels installed and their
+# capacity. That means that you will need to measure the total output
+# of your system for each Volt or Watt measured by your sensor. Remember,
+# the sensor measures solar output, not your system output.
+# If your input sensor returns Volts, you will need to
+# determine the Watts per Volt your system outputs. Adjust this
+# value to get the total amount of Watts you produce at every given time.
+# If your sensor returns Watts, you need to measure the output of your
+# system for each Watt measured by your sensor and set this multiplier
+# accordingly.
 input_sensor_multiplier = 1350
 
 # consumers is an array of dbus interfaces that gives us the power consumtion of your

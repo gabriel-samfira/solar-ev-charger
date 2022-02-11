@@ -13,6 +13,7 @@ type LogLevel string
 
 const (
 	ClientID          = "solar-ev-charger"
+	Trace    LogLevel = "trace"
 	Debug    LogLevel = "debug"
 	Info     LogLevel = "info"
 	Warning  LogLevel = "warning"

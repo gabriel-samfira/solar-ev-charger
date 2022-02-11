@@ -44,6 +44,8 @@ func main() {
 	loggo.ReplaceDefaultWriter(simpleWriter)
 
 	switch cfg.LogLevel {
+	case config.Trace:
+		log.SetLogLevel(loggo.TRACE)
 	case config.Debug:
 		log.SetLogLevel(loggo.DEBUG)
 	case config.Info:

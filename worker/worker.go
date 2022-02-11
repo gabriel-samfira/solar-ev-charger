@@ -94,7 +94,7 @@ func (w *Worker) syncState() error {
 		desiredState = true
 	}
 
-	log.Debugf("Desired state is %v, amp is %v", desiredState, stationAmps)
+	log.Tracef("Desired state is %v, amp is %v", desiredState, stationAmps)
 
 	if desiredState && !w.chargerState.Active {
 		log.Debugf("desired state is %v, current state is %v", desiredState, w.chargerState.Active)
@@ -117,7 +117,7 @@ func (w *Worker) syncState() error {
 	}
 
 	if curAmpSetting != stationAmps {
-		log.Debugf("current amp setting (%d) differs from desired state (%d)", curAmpSetting, stationAmps)
+		log.Infof("current amp setting (%d) differs from desired state (%d)", curAmpSetting, stationAmps)
 		if err := w.chargerClient.SetAmp(stationAmps); err != nil {
 			return errors.Wrap(err, "setting station amps")
 		}
