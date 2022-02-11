@@ -9,8 +9,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+type LogLevel string
+
 const (
-	ClientID = "solar-ev-charger"
+	ClientID          = "solar-ev-charger"
+	Debug    LogLevel = "debug"
+	Info     LogLevel = "info"
+	Warning  LogLevel = "warning"
 )
 
 func NewConfig(cfgFile string) (*Config, error) {
@@ -39,8 +44,16 @@ type Config struct {
 	MaxAmpLimit uint `toml:"max_amp_limit"`
 	// MinAmpThreshold is the minimum amps we will set on the station.
 	MinAmpThreshold uint `toml:"minimum_amp_threshold"`
-	// ToggleStationOnThreshold will turn the station on or off if MinAmpThreshold
-	// dips bellow the configured value.
+	// DisableChargingThreshold is the amp threshold below which we turn off the
+	// charging station.
+	DisableChargingThreshold uint `toml:"disable_charging_threshold"`
+	// EnableChargingThreshold is the amp threshold above which we turn on the
+	// charging station.
+	EnableChargingThreshold uint `toml:"enable_charging_threshold"`
+	// ToggleStationOnThreshold will turn the station on or off. The station will
+	// be turned off when the available amperage dips bellow
+	// disable_charging_threshold and will be turned back on when available amps
+	// go above enable_charging_threshold.
 	ToggleStationOnThreshold bool `toml:"toggle_station_on_threshold"`
 	// BackoffThreshold is the minimum amount of time we allow between updates
 	// to the EV charging station. Updates from dbus come frequently, and
@@ -53,6 +66,9 @@ type Config struct {
 
 	// Charger holds the config for the charger
 	Charger Charger `toml:"eCharger"`
+
+	// LogLevel sets the logging output to desired level.
+	LogLevel LogLevel `toml:"log_level"`
 }
 
 func (c *Config) Validate() error {
@@ -151,7 +167,7 @@ type MQTTSettings struct {
 	Broker   string `toml:"broker"`
 	Port     int    `toml:"port"`
 	Username string `toml:"username"`
-	Password string `toml:"passsword"`
+	Password string `toml:"password"`
 }
 
 func (m *MQTTSettings) BrokerURI() (string, error) {

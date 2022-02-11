@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"os"
 	"os/signal"
@@ -43,7 +42,17 @@ func main() {
 	}
 	simpleWriter := loggo.NewSimpleWriter(logWriter, loggo.DefaultFormatter)
 	loggo.ReplaceDefaultWriter(simpleWriter)
-	log.SetLogLevel(loggo.DEBUG)
+
+	switch cfg.LogLevel {
+	case config.Debug:
+		log.SetLogLevel(loggo.DEBUG)
+	case config.Info:
+		log.SetLogLevel(loggo.INFO)
+	case config.Warning:
+		log.SetLogLevel(loggo.WARNING)
+	default:
+		log.SetLogLevel(loggo.INFO)
+	}
 
 	if err := cfg.Validate(); err != nil {
 		log.Errorf("error validating config: %q", err)
@@ -52,20 +61,20 @@ func main() {
 
 	statusUpdates := make(chan params.DBusState, 10)
 	chargerStatus := make(chan params.ChargerState, 10)
-	go func() {
-		for {
-			select {
-			case s := <-statusUpdates:
-				asJs, _ := json.MarshalIndent(s, "", "  ")
-				log.Infof("%s", asJs)
-			case c := <-chargerStatus:
-				asJs, _ := json.MarshalIndent(c, "", "  ")
-				log.Infof("%s", asJs)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+	// go func() {
+	// 	for {
+	// 		select {
+	// 		case s := <-statusUpdates:
+	// 			asJs, _ := json.MarshalIndent(s, "", "  ")
+	// 			log.Infof("%s", asJs)
+	// 		case c := <-chargerStatus:
+	// 			asJs, _ := json.MarshalIndent(c, "", "  ")
+	// 			log.Infof("%s", asJs)
+	// 		case <-ctx.Done():
+	// 			return
+	// 		}
+	// 	}
+	// }()
 
 	dbusWorker, err := dbus.NewDBusWorker(ctx, cfg, statusUpdates)
 	if err != nil {

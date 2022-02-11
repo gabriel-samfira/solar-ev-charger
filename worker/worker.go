@@ -48,7 +48,7 @@ type Worker struct {
 
 func (w *Worker) syncState() error {
 	var stationAmps uint64
-	var desiredState bool = true
+	var desiredState bool
 
 	var totalConsumption float64
 	var totalProduction float64
@@ -76,10 +76,6 @@ func (w *Worker) syncState() error {
 	if stationAmps < uint64(w.cfg.MinAmpThreshold) {
 		// We're producing less than the minimum we want to set on the station.
 		stationAmps = uint64(w.cfg.MinAmpThreshold)
-		if w.cfg.ToggleStationOnThreshold {
-			// If toggle is enabled, this is where we turn off the station.
-			desiredState = false
-		}
 	}
 
 	var curAmpSetting uint64
@@ -92,20 +88,28 @@ func (w *Worker) syncState() error {
 		stationAmps = uint64(w.cfg.MaxAmpLimit)
 	}
 
+	if stationAmps <= uint64(w.cfg.DisableChargingThreshold) {
+		desiredState = false
+	} else if stationAmps >= uint64(w.cfg.EnableChargingThreshold) {
+		desiredState = true
+	}
+
 	log.Debugf("Desired state is %v, amp is %v", desiredState, stationAmps)
-	log.Debugf("current amp setting (%d) differs from desired state (%d)", curAmpSetting, stationAmps)
 
 	if desiredState && !w.chargerState.Active {
-		// If toggle_station_on_threshold is disabled, we'll always try to start the station.
-		// The default for desiredState is true.
-		if err := w.chargerClient.Start(); err != nil {
-			return errors.Wrap(err, "starting charger")
+		log.Debugf("desired state is %v, current state is %v", desiredState, w.chargerState.Active)
+		if w.cfg.ToggleStationOnThreshold {
+			log.Infof("enabling charging station; available amps: %v", stationAmps)
+			if err := w.chargerClient.Start(); err != nil {
+				return errors.Wrap(err, "starting charger")
+			}
 		}
 	}
 
 	if !desiredState && w.chargerState.Active {
+		log.Debugf("desired state is %v, current state is %v", desiredState, w.chargerState.Active)
 		if w.cfg.ToggleStationOnThreshold {
-			// If toggle_station_on_threshold is disabled, we'll never try to stop the station.
+			log.Infof("disabling charging station; available amps: %v", stationAmps)
 			if err := w.chargerClient.Stop(); err != nil {
 				return errors.Wrap(err, "stopping charger")
 			}
@@ -113,6 +117,7 @@ func (w *Worker) syncState() error {
 	}
 
 	if curAmpSetting != stationAmps {
+		log.Debugf("current amp setting (%d) differs from desired state (%d)", curAmpSetting, stationAmps)
 		if err := w.chargerClient.SetAmp(stationAmps); err != nil {
 			return errors.Wrap(err, "setting station amps")
 		}

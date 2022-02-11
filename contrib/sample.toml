@@ -1,27 +1,92 @@
+# electrical_presure is the voltage at which
+# your charging station works.
 electrical_presure = 230
+
+# max_amp_limit is the maximum amerage you wish
+# to set on your charging station
 max_amp_limit = 20
+
+# minimum_amp_threshold is the lowest amp setting you
+# wish to set on your charging station.
 minimum_amp_threshold = 6
+
+# disable_charging_threshold is the value in amps bellow which
+# the charging station will be turned off. If the available
+# amps is lower than this value, the charging station will
+# be turned off.
+disable_charging_threshold = 3
+
+# enable_charging_threshold is the value in amps above which
+# the charging station will be turned on. If the available
+# amps is higher than this threshold, the charging station will
+# be turned on.
+enable_charging_threshold = 6
+
+# toggle_station_on_threshold allows solar-ev-charger to enable
+# or disable charging on your station, based on the values set on
+# disable_charging_threshold and enable_charging_threshold.
 toggle_station_on_threshold = false
-backoff_interval = 5
+
+# backoff_interval is the interval in seconds we are allowed to send
+# updates to the charging station. Avoid setting this value too low.
+# We receive real-time updates from dbus in regards to power production
+# and if solar iradiation and household consumption fluctuate too much
+# you will be toggling the charging station too often.
+backoff_interval = 20
+
+# log_level sets the logging level for the solar-ev-charger. Options are:
+# "debug", "info", "warning". Quotes are important.
+log_level = "debug"
+
+# log_file is the path on disk to the log file we'll be writing to.
 # Leave log_file commented out to log to standard output.
 # log_file = "/tmp/solar-ev-charger.log"
 
+
+# input_sensors is an array of sensors we can define as a source of information
+# for power production. The double brackets means it's an array element. You can
+# define multiple such sections, and they will all be used as a source of information
+# for power production. Values from each sensor will be added to the total power
+# production of your setup.
 [[input_sensors]]
 dbus_interface = "com.victronenergy.battery.ttyO2"
 path = "/Dc/1/Voltage"
 input_sensor_multiplier = 1350
 
+# consumers is an array of dbus interfaces that gives us the power consumtion of your
+# setup. The double brackets means it's an array element. You can define multiple such
+# sections, and they will all be used as a source of information for power consumption.
+# Values gathered from each interface will be added to the total power consumption of
+# your setup.
 [[consumers]]
 dbus_interface = "com.victronenergy.system"
 path = "/Ac/Consumption/L1/Power"
 
+# eCharger is the section that defines information about your go-eCharger.
 [eCharger]
+# station_ip is the IP address of your charger. We'll connect to this IP to fetch status
+# and set new values.
 station_ip = "192.168.8.13"
+
+# use_mqtt specifies whether to use MQTT to receive status updates from the charger.
+# NOTE: settings are still applied via the HTTP API (for now). If set to true, both the
+# go-eCharger and this application *must* use the same broker (defined bellow).
+# If set to false, this application will poll the HTTP API for updates.
 use_mqtt = true
 
+    # eCharger.mqtt are the MQTT settings this application will use to connect to the same
+    # MQTT broker as the charging station.
     [eCharger.mqtt]
+    # broker is the MQTT broker address we'll use to connect.
     broker = "127.0.0.1"
+
+    # port is the MQTT port we'll use to connect to MQTT.
     port = 1883
-    # Leave commented if no authentication is required.
+
+    # username is the MQTT username. If authentication is enabled, you'll need to uncomment and
+    # set this to a proper value.
     # username = ""
-    # passsword = ""
+
+    # password is the MQTT password. If authentication is enabled, you'll need to uncomment and
+    # set this to a proper value.
+    # password = ""

@@ -95,10 +95,13 @@ func (w *Worker) mqttNewMessageHandler(client mqtt.Client, msg mqtt.Message) {
 
 	payload := msg.Payload()
 	topic := msg.Topic()
-	log.Infof("got new message from topic %s (%s)", topic, w.mqttTopic)
+
 	if topic != w.mqttTopic {
+		log.Debugf("got new message on topic %v; configured topic is %v", topic, w.mqttTopic)
 		return
 	}
+
+	log.Tracef("got new status update: %v", payload)
 	var x chargerStatus
 	if err := json.Unmarshal(payload, &x); err != nil {
 		log.Errorf("failed to decode status: %q", err)
@@ -138,6 +141,10 @@ func (w *Worker) connectMQTT() (mqtt.Client, error) {
 }
 
 func (w *Worker) loopMQTT() {
+	defer func() {
+		w.client.Disconnect(1000)
+		close(w.closed)
+	}()
 	for {
 		if w.client == nil {
 			client, err := w.connectMQTT()
@@ -152,12 +159,8 @@ func (w *Worker) loopMQTT() {
 
 		select {
 		case <-w.ctx.Done():
-			w.client.Disconnect(1000)
-			close(w.closed)
 			return
 		case <-w.quit:
-			w.client.Disconnect(1000)
-			close(w.closed)
 			return
 		case <-w.mqttDisconnected:
 			w.client = nil
@@ -167,15 +170,16 @@ func (w *Worker) loopMQTT() {
 
 func (w *Worker) loopHTTP() {
 	timer := time.NewTicker(5 * time.Second)
+
+	defer func() {
+		timer.Stop()
+		close(w.closed)
+	}()
 	for {
 		select {
 		case <-w.ctx.Done():
-			timer.Stop()
-			close(w.closed)
 			return
 		case <-w.quit:
-			timer.Stop()
-			close(w.closed)
 			return
 		case <-timer.C:
 			w.mux.Lock()
