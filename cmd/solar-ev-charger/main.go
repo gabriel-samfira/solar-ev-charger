@@ -5,14 +5,15 @@ import (
 	"flag"
 	"os"
 	"os/signal"
+
+	"github.com/juju/loggo"
+
 	"solar-ev-charger/config"
 	"solar-ev-charger/dbus"
 	"solar-ev-charger/eCharger"
 	"solar-ev-charger/params"
 	"solar-ev-charger/util"
 	"solar-ev-charger/worker"
-
-	"github.com/juju/loggo"
 )
 
 var log = loggo.GetLogger("")

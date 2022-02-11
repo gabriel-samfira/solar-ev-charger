@@ -3,14 +3,15 @@ package worker
 import (
 	"context"
 	"fmt"
-	"solar-ev-charger/config"
-	"solar-ev-charger/eCharger/client"
-	"solar-ev-charger/params"
 	"sync"
 	"time"
 
 	"github.com/juju/loggo"
 	"github.com/pkg/errors"
+
+	"solar-ev-charger/config"
+	"solar-ev-charger/eCharger/client"
+	"solar-ev-charger/params"
 )
 
 var log = loggo.GetLogger("sevc.worker")
