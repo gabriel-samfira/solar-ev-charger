@@ -22,6 +22,11 @@ func NewDBusWorker(ctx context.Context, cfg *config.Config, stateChan chan param
 		return nil, errors.Wrap(err, "creating dbus connection")
 	}
 
+	cmdConn, err := dbus.ConnectSystemBus()
+	if err != nil {
+		return nil, errors.Wrap(err, "creating dbus connection")
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, errors.Wrap(err, "validating config")
 	}
@@ -33,6 +38,7 @@ func NewDBusWorker(ctx context.Context, cfg *config.Config, stateChan chan param
 
 	worker := &Worker{
 		conn:         conn,
+		cmdConn:      cmdConn,
 		ctx:          ctx,
 		closed:       make(chan struct{}),
 		quit:         make(chan struct{}),
@@ -46,13 +52,16 @@ func NewDBusWorker(ctx context.Context, cfg *config.Config, stateChan chan param
 }
 
 type Worker struct {
-	conn   *dbus.Conn
-	ctx    context.Context
-	closed chan struct{}
-	quit   chan struct{}
+	cmdConn *dbus.Conn
+	conn    *dbus.Conn
+	ctx     context.Context
+	closed  chan struct{}
+	quit    chan struct{}
 
 	inputSensors []config.InputSensor
 	consumers    []config.Consumer
+
+	initialized bool
 
 	mut   sync.Mutex
 	state params.DBusState
@@ -89,12 +98,14 @@ func (w *Worker) initState() error {
 		}
 		w.state.Producers[sensor.Path] = val * sensor.InputMultiplier
 	}
+	w.initialized = true
+	w.stateChanged <- w.state
 	return nil
 }
 
 func (w *Worker) fetchValueFromDBus(dbusInterface, path string) (interface{}, error) {
 	var ret interface{}
-	obj := w.conn.Object(dbusInterface, dbus.ObjectPath(path))
+	obj := w.cmdConn.Object(dbusInterface, dbus.ObjectPath(path))
 	err := obj.Call("com.victronenergy.BusItem.GetValue", 0).Store(&ret)
 	if err != nil {
 		return ret, errors.Wrapf(err, "fetching %s from dbus", path)
@@ -116,7 +127,7 @@ func valueAsFloat(val interface{}) (float64, error) {
 	case float32:
 		return float64(consumerValue), nil
 	default:
-		return 0, fmt.Errorf("invalid type %T", val)
+		return 0, fmt.Errorf("invalid type %T --> %v", val, val)
 	}
 }
 
@@ -124,9 +135,27 @@ func (w *Worker) dbusLoop() {
 	c := make(chan *dbus.Message, 10)
 	w.conn.Eavesdrop(c)
 
+	defer func() {
+		w.conn.Close()
+		close(w.closed)
+	}()
+
 	for {
 		select {
-		case msg := <-c:
+		case msg, ok := <-c:
+			if !ok {
+				log.Errorf("dbus channel was closed")
+				return
+			}
+
+			if !w.initialized {
+				if err := w.initState(); err != nil {
+					log.Warningf("failed to initialize dbus state: %+v", err)
+					time.Sleep(5 * time.Second)
+					continue
+				}
+			}
+
 			if msg.Type != dbus.TypeSignal {
 				continue
 			}
@@ -198,12 +227,8 @@ func (w *Worker) dbusLoop() {
 			}
 			w.mut.Unlock()
 		case <-w.ctx.Done():
-			w.conn.Close()
-			close(w.closed)
 			return
 		case <-w.quit:
-			w.conn.Close()
-			close(w.closed)
 			return
 		}
 	}
@@ -212,7 +237,7 @@ func (w *Worker) dbusLoop() {
 func (w *Worker) Start() error {
 	// We need to init state before we enable monitoring on the dbus connection.
 	if err := w.initState(); err != nil {
-		return errors.Wrap(err, "initializing state")
+		log.Warningf("failed to initialize dbus state: %+v", err)
 	}
 
 	var rules = []string{

@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -36,6 +37,9 @@ type Worker struct {
 	dbusState    params.DBusState
 	chargerState params.ChargerState
 
+	chargerStateReceived bool
+	dbusStateReceived    bool
+
 	chargerClient client.Client
 
 	cfg config.Config
@@ -48,8 +52,14 @@ type Worker struct {
 }
 
 func (w *Worker) syncState() error {
+	if !w.chargerStateReceived || !w.dbusStateReceived {
+		log.Infof("Empty charger or dbus state. Waiting for metrics.")
+		return nil
+	}
 	var stationAmps uint64
-	var desiredState bool
+	var availableAmps uint64
+	// initialize desired state with current state.
+	var desiredState bool = w.chargerState.Active
 
 	var totalConsumption float64
 	var totalProduction float64
@@ -64,19 +74,16 @@ func (w *Worker) syncState() error {
 	}
 
 	householdConsumption := totalConsumption - chargerConsumption
-	// available watts after we substract household usage
-	available := uint64(totalProduction - householdConsumption)
+	// available watts after we substract household usage. We round that down.
+	available := math.Floor(totalProduction - householdConsumption)
+	log.Debugf("charger usage: %.2f, total usage: %.2f, production: %.2f, household: %.2f, available: %.2f", chargerConsumption, totalConsumption, totalProduction, householdConsumption, available)
+
 	if available <= 0 {
 		// We're consuming more than we're producing
-		stationAmps = 0
+		availableAmps = 0
 	} else {
 		// We have some excess. Convert to amps.
-		stationAmps = available / w.cfg.ElectricalPresure
-	}
-
-	if stationAmps < uint64(w.cfg.MinAmpThreshold) {
-		// We're producing less than the minimum we want to set on the station.
-		stationAmps = uint64(w.cfg.MinAmpThreshold)
+		availableAmps = uint64(available) / w.cfg.ElectricalPresure
 	}
 
 	var curAmpSetting uint64
@@ -84,23 +91,37 @@ func (w *Worker) syncState() error {
 		curAmpSetting = uint64(w.chargerState.CurrentAmpSetting)
 	}
 
-	if stationAmps > uint64(w.cfg.MaxAmpLimit) {
+	if availableAmps > uint64(w.cfg.MaxAmpLimit) {
 		// We have more power than we can set on the station. Cap it to configured maximum.
-		stationAmps = uint64(w.cfg.MaxAmpLimit)
+		availableAmps = uint64(w.cfg.MaxAmpLimit)
 	}
 
-	if stationAmps <= uint64(w.cfg.DisableChargingThreshold) {
+	// The current state of the station is not modified if the current available amps
+	// stays within the usage range defined by the disable and the enable thresholds.
+	// it is a buffer zone to prevent station flapping.
+	if availableAmps <= uint64(w.cfg.DisableChargingThreshold) {
+		// if we dip bellow the disable threshold, we turn off the station.
+		// Above this threshold we leave it on, even if we drain the batteries
+		// a bit.
 		desiredState = false
-	} else if stationAmps >= uint64(w.cfg.EnableChargingThreshold) {
+	} else if availableAmps >= uint64(w.cfg.EnableChargingThreshold) {
+		// if the station is off and the available amps are above the enable threshold
+		// we turn it back on.
 		desiredState = true
 	}
 
-	log.Tracef("Desired state is %v, amp is %v", desiredState, stationAmps)
+	stationAmps = availableAmps
+	if stationAmps < uint64(w.cfg.MinAmpThreshold) {
+		// We're producing less than the minimum we want to set on the station.
+		stationAmps = uint64(w.cfg.MinAmpThreshold)
+	}
+
+	log.Tracef("Desired state is %v, available amps is %v (%v), station amps is %v, disable threshold %v, enable_threshold: %v ", desiredState, availableAmps, available, stationAmps, w.cfg.DisableChargingThreshold, w.cfg.EnableChargingThreshold)
 
 	if desiredState && !w.chargerState.Active {
 		log.Debugf("desired state is %v, current state is %v", desiredState, w.chargerState.Active)
 		if w.cfg.ToggleStationOnThreshold {
-			log.Infof("enabling charging station; available amps: %v", stationAmps)
+			log.Infof("enabling charging station; available amps: %v", availableAmps)
 			if err := w.chargerClient.Start(); err != nil {
 				return errors.Wrap(err, "starting charger")
 			}
@@ -110,7 +131,7 @@ func (w *Worker) syncState() error {
 	if !desiredState && w.chargerState.Active {
 		log.Debugf("desired state is %v, current state is %v", desiredState, w.chargerState.Active)
 		if w.cfg.ToggleStationOnThreshold {
-			log.Infof("disabling charging station; available amps: %v", stationAmps)
+			log.Infof("disabling charging station; available amps: %v", availableAmps)
 			if err := w.chargerClient.Stop(); err != nil {
 				return errors.Wrap(err, "stopping charger")
 			}
@@ -118,7 +139,7 @@ func (w *Worker) syncState() error {
 	}
 
 	if curAmpSetting != stationAmps {
-		log.Infof("current amp setting (%d) differs from desired state (%d)", curAmpSetting, stationAmps)
+		log.Infof("setting station amp to %d. Previous setting was %d", stationAmps, curAmpSetting)
 		if err := w.chargerClient.SetAmp(stationAmps); err != nil {
 			return errors.Wrap(err, "setting station amps")
 		}
@@ -146,6 +167,7 @@ func (w *Worker) loop() {
 				return
 			}
 			w.mux.Lock()
+			w.dbusStateReceived = true
 			w.dbusState = change
 			w.mux.Unlock()
 		case change, ok := <-w.chargerChanges:
@@ -153,6 +175,7 @@ func (w *Worker) loop() {
 				return
 			}
 			w.mux.Lock()
+			w.chargerStateReceived = true
 			w.chargerState = change
 			w.mux.Unlock()
 		case <-w.quit:

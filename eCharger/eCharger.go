@@ -75,7 +75,13 @@ func (w *Worker) mqttConnectionLostHandler(client mqtt.Client, err error) {
 
 func (w *Worker) sendLocalState() error {
 	// Divide by 10. See "nrg" table: https://github.com/goecharger/go-eCharger-API-v1/blob/master/go-eCharger%20API%20v1%20EN.md
-	currentUsage := (float64(w.status.SensorData[4]+w.status.SensorData[5]+w.status.SensorData[6]) / 10) * float64(w.cfg.ElectricalPresure)
+	totalUsage := w.status.SensorData[4] + w.status.SensorData[5] + w.status.SensorData[6]
+	if totalUsage > 0 {
+		totalUsage = totalUsage / 10
+	} else {
+		totalUsage = 0
+	}
+	currentUsage := float64(uint64(totalUsage) * w.cfg.ElectricalPresure)
 	state := params.ChargerState{
 		Active:            w.status.AllowCharging == 1,
 		CurrentUsage:      currentUsage,
@@ -101,7 +107,7 @@ func (w *Worker) mqttNewMessageHandler(client mqtt.Client, msg mqtt.Message) {
 		return
 	}
 
-	log.Tracef("got new status update: %v", payload)
+	//log.Tracef("got new status update: %v", payload)
 	var x chargerStatus
 	if err := json.Unmarshal(payload, &x); err != nil {
 		log.Errorf("failed to decode status: %q", err)
