@@ -2,7 +2,7 @@
 # your charging station works.
 electrical_presure = 230
 
-# max_amp_limit is the maximum amerage you wish
+# max_amp_limit is the maximum amperage you wish
 # to set on your charging station
 max_amp_limit = 20
 
@@ -10,7 +10,7 @@ max_amp_limit = 20
 # wish to set on your charging station.
 minimum_amp_threshold = 6
 
-# disable_charging_threshold is the value in amps bellow which
+# disable_charging_threshold is the value in amps below which
 # the charging station will be turned off. If the available
 # amps is lower than this value, the charging station will
 # be turned off.
@@ -30,7 +30,7 @@ toggle_station_on_threshold = false
 # backoff_interval is the interval in seconds we are allowed to send
 # updates to the charging station. Avoid setting this value too low.
 # We receive real-time updates from dbus in regards to power production
-# and if solar iradiation and household consumption fluctuate too much
+# and if solar irradiation and household consumption fluctuate too much
 # you will be toggling the charging station too often.
 backoff_interval = 20
 
@@ -66,7 +66,7 @@ path = "/Dc/1/Voltage"
 # accordingly.
 input_sensor_multiplier = 1350
 
-# consumers is an array of dbus interfaces that gives us the power consumtion of your
+# consumers is an array of dbus interfaces that gives us the power consumption of your
 # setup. The double brackets means it's an array element. You can define multiple such
 # sections, and they will all be used as a source of information for power consumption.
 # Values gathered from each interface will be added to the total power consumption of
@@ -83,7 +83,7 @@ station_ip = "192.168.8.13"
 
 # use_mqtt specifies whether to use MQTT to receive status updates from the charger.
 # NOTE: settings are still applied via the HTTP API (for now). If set to true, both the
-# go-eCharger and this application *must* use the same broker (defined bellow).
+# go-eCharger and this application *must* use the same broker (defined below).
 # If set to false, this application will poll the HTTP API for updates.
 use_mqtt = true
 
