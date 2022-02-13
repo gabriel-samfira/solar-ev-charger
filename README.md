@@ -60,7 +60,7 @@ cat > /data/etc/solar-ev-charger/service/run << EOF
 echo "*** starting solar-ev-charger ***"
 exec 2>&1
 
-exec /data/bin/start-ev-charger.sh
+exec /data/bin/solar-ev-charger -config=/data/etc/solar-ev-charger/config.toml
 ```
 
 Now make it executable:
