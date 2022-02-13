@@ -49,6 +49,7 @@ SSH into your ccgx and create a folder that will hold the startup script:
 
 ```bash
 mkdir -p /data/etc/solar-ev-charger/service
+mkdir /data/etc/solar-ev-charger/service/supervise/
 ```
 
 Now create the script itself:
@@ -56,8 +57,10 @@ Now create the script itself:
 ```bash
 cat > /data/etc/solar-ev-charger/service/run << EOF
 #!/bin/sh
+echo "*** starting solar-ev-charger ***"
+exec 2>&1
 
-exec /data/bin/solar-ev-charger -config=/data/etc/solar-ev-charger/config.toml
+exec /data/bin/start-ev-charger.sh
 ```
 
 Now make it executable:
