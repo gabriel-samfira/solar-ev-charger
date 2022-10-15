@@ -8,9 +8,11 @@ import (
 
 	"github.com/juju/loggo"
 
+	"solar-ev-charger/chargers/common"
+	"solar-ev-charger/chargers/eCharger"
+	"solar-ev-charger/chargers/openEVSE"
 	"solar-ev-charger/config"
 	"solar-ev-charger/dbus"
-	"solar-ev-charger/eCharger"
 	"solar-ev-charger/params"
 	"solar-ev-charger/util"
 	"solar-ev-charger/worker"
@@ -90,7 +92,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	chargerWorker, err := eCharger.NewWorker(ctx, cfg, chargerStatus)
+	var chargerWorker common.BasicWorker
+	switch cfg.ConfiguredCharger {
+	case "OpenEVSE":
+		chargerWorker, err = openEVSE.NewWorker(ctx, cfg, chargerStatus)
+	case "eCharger":
+		chargerWorker, err = eCharger.NewWorker(ctx, cfg, chargerStatus)
+	default:
+		log.Errorf("invalid charger type: %s", cfg.ConfiguredCharger)
+		os.Exit(1)
+	}
 	if err != nil {
 		log.Errorf("error creating charger worker: %q", err)
 		os.Exit(1)

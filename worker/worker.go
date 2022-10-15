@@ -10,8 +10,9 @@ import (
 	"github.com/juju/loggo"
 	"github.com/pkg/errors"
 
+	"solar-ev-charger/chargers/common"
+	"solar-ev-charger/chargers/eCharger/client"
 	"solar-ev-charger/config"
-	"solar-ev-charger/eCharger/client"
 	"solar-ev-charger/params"
 )
 
@@ -40,7 +41,7 @@ type Worker struct {
 	chargerStateReceived bool
 	dbusStateReceived    bool
 
-	chargerClient client.Client
+	chargerClient common.Client
 
 	cfg config.Config
 

@@ -65,8 +65,14 @@ type Config struct {
 	// LogFile is the path to the log on disk
 	LogFile string `toml:"log_file"`
 
+	// ConfiguredCharger is the charger type we want to automate.
+	ConfiguredCharger string `toml:"configured_charger"`
+
 	// Charger holds the config for the charger
 	Charger Charger `toml:"eCharger"`
+
+	// OpenEVSE holds config options for OpenEVSE
+	OpenEVSE OpenEVSECharger `toml:"OpenEVSE"`
 
 	// LogLevel sets the logging output to desired level.
 	LogLevel LogLevel `toml:"log_level"`
@@ -137,6 +143,37 @@ type Consumer struct {
 }
 
 func (c *Consumer) Validate() error {
+	return nil
+}
+
+type OpenEVSECharger struct {
+	Address  string `toml:"address"`
+	Username string `toml:"username"`
+	Password string `toml:"password"`
+	// BaseTopic is the topic configured in OpenEVSE for MQTT.
+	BaseTopic string `toml:"base_topic"`
+	// MQTT represents the MQTT settings used by the station. We need
+	// to use the same settings in this worker to be able to communicate
+	// with the station via MQTT.
+	MQTT    MQTTSettings `toml:"mqtt"`
+	UseMQTT bool         `toml:"use_mqtt"`
+}
+
+func (o *OpenEVSECharger) Validate() error {
+	ip := net.ParseIP(o.Address)
+	if ip == nil {
+		return fmt.Errorf("invalid station IP address: %s", o.Address)
+	}
+
+	if o.Username == "" || o.Password == "" {
+		return fmt.Errorf("missing required username and password")
+	}
+
+	if o.UseMQTT {
+		if err := o.MQTT.Validate(); err != nil {
+			return errors.Wrap(err, "validating mqtt settings")
+		}
+	}
 	return nil
 }
 

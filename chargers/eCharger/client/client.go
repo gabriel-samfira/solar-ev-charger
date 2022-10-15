@@ -3,17 +3,12 @@ package client
 import (
 	"fmt"
 	"net/http"
+	"solar-ev-charger/chargers/common"
 
 	"github.com/pkg/errors"
 )
 
-type Client interface {
-	Start() error
-	Stop() error
-	SetAmp(newVal uint64) error
-}
-
-func NewChargerClient(addr string) Client {
+func NewChargerClient(addr string) common.Client {
 	return &httpClient{
 		addr: addr,
 	}

@@ -66,6 +66,11 @@ path = "/Dc/1/Voltage"
 # accordingly.
 input_sensor_multiplier = 1350
 
+# configured_charger is the charger we want to automate. Current options are:
+#   * OpenEVSE
+#   * eCharger
+configured_charger = "OpenEVSE"
+
 # consumers is an array of dbus interfaces that gives us the power consumption of your
 # setup. The double brackets means it's an array element. You can define multiple such
 # sections, and they will all be used as a source of information for power consumption.
@@ -74,6 +79,37 @@ input_sensor_multiplier = 1350
 [[consumers]]
 dbus_interface = "com.victronenergy.system"
 path = "/Ac/Consumption/L1/Power"
+
+# OpenEVSE is the section that defines information about your OpenEVSE charger.
+[OpenEVSE]
+address = "192.168.8.13"
+username = "admin"
+password = "superSecretPassword"
+# base_topic is the base topic you configured in your OpenEVSE charger. Updates are
+# sent on this topic by your charger. We will subscribe to all events sent on this
+# base topic.
+base_topic = "evsecharger"
+# use_mqtt specifies whether to use MQTT to receive updates from the charger.
+# NOTE: Not all required settings are advertised via mqtt. Some still require a HTTP
+# RAPI call.
+use_mqtt = true
+    # eCharger.mqtt are the MQTT settings this application will use to connect to the same
+    # MQTT broker as the charging station.
+    [OpenEVSE.mqtt]
+    # broker is the MQTT broker address we'll use to connect.
+    broker = "127.0.0.1"
+
+    # port is the MQTT port we'll use to connect to MQTT.
+    port = 1883
+
+    # username is the MQTT username. If authentication is enabled, you'll need to uncomment and
+    # set this to a proper value.
+    # username = ""
+
+    # password is the MQTT password. If authentication is enabled, you'll need to uncomment and
+    # set this to a proper value.
+    # password = ""
+
 
 # eCharger is the section that defines information about your go-eCharger.
 [eCharger]
