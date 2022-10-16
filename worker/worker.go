@@ -11,7 +11,8 @@ import (
 	"github.com/pkg/errors"
 
 	"solar-ev-charger/chargers/common"
-	"solar-ev-charger/chargers/eCharger/client"
+	eChargerClient "solar-ev-charger/chargers/eCharger/client"
+	openEVSEClient "solar-ev-charger/chargers/openEVSE/client"
 	"solar-ev-charger/config"
 	"solar-ev-charger/params"
 )
@@ -19,7 +20,14 @@ import (
 var log = loggo.GetLogger("sevc.worker")
 
 func NewWorker(ctx context.Context, cfg *config.Config, dbusChanges chan params.DBusState, chargerChanges chan params.ChargerState) (*Worker, error) {
-	cli := client.NewChargerClient(cfg.Charger.StationAddress)
+	var chargerClient common.Client
+	switch cfg.ConfiguredCharger {
+	case "OpenEVSE":
+		chargerClient = openEVSEClient.NewChargerClient(cfg.OpenEVSE.Address, cfg.OpenEVSE.Username, cfg.OpenEVSE.Password)
+	case "eCharger":
+		chargerClient = eChargerClient.NewChargerClient(cfg.Charger.StationAddress)
+	}
+
 	return &Worker{
 		dbusChanges:    dbusChanges,
 		chargerChanges: chargerChanges,
@@ -27,7 +35,7 @@ func NewWorker(ctx context.Context, cfg *config.Config, dbusChanges chan params.
 		quit:           make(chan struct{}),
 		ctx:            ctx,
 		cfg:            *cfg,
-		chargerClient:  cli,
+		chargerClient:  chargerClient,
 	}, nil
 }
 

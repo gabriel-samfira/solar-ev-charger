@@ -38,6 +38,11 @@ backoff_interval = 20
 # "trace", "debug", "info", "warning". Quotes are important.
 log_level = "debug"
 
+# configured_charger is the charger we want to automate. Current options are:
+#   * OpenEVSE
+#   * eCharger
+configured_charger = "OpenEVSE"
+
 # log_file is the path on disk to the log file we'll be writing to.
 # Leave log_file commented out to log to standard output.
 # log_file = "/tmp/solar-ev-charger.log"
@@ -65,11 +70,6 @@ path = "/Dc/1/Voltage"
 # system for each Watt measured by your sensor and set this multiplier
 # accordingly.
 input_sensor_multiplier = 1350
-
-# configured_charger is the charger we want to automate. Current options are:
-#   * OpenEVSE
-#   * eCharger
-configured_charger = "OpenEVSE"
 
 # consumers is an array of dbus interfaces that gives us the power consumption of your
 # setup. The double brackets means it's an array element. You can define multiple such

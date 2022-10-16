@@ -95,20 +95,24 @@ func (w *Worker) mqttNewMessageHandler(client mqtt.Client, msg mqtt.Message) {
 	topic := msg.Topic()
 
 	switch topic {
-	case "amp":
+	case fmt.Sprintf("%s/amp", w.cfg.OpenEVSE.BaseTopic):
 		val, err := strconv.ParseFloat(string(payload), 64)
 		if err != nil {
 			log.Errorf("failed to parse payload: %s", string(payload))
 			return
 		}
-		w.status.currentUsage = val
-	case "state":
+		var amp float64
+		if val > 0 {
+			amp = val / 1000
+		}
+		w.status.currentUsage = float64(uint64(amp) * w.cfg.ElectricalPresure)
+	case fmt.Sprintf("%s/state", w.cfg.OpenEVSE.BaseTopic):
 		val, err := strconv.ParseUint(string(payload), 10, 64)
 		if err != nil {
 			log.Errorf("failed to parse payload: %s", string(payload))
 			return
 		}
-		w.status.enabled = val == 1
+		w.status.enabled = val != 254 && val != 255
 	default:
 		return
 	}
@@ -206,7 +210,7 @@ func (w *Worker) fetchStatusFromAPI() (chargerStatus, error) {
 	}
 
 	return chargerStatus{
-		currentUsage:      usage,
+		currentUsage:      float64(uint64(usage) * w.cfg.ElectricalPresure),
 		currentAmpSetting: currentCapacity.CurrentMaxAmps,
 		enabled:           state.State == 1,
 	}, nil
