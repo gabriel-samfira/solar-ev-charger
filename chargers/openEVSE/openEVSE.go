@@ -144,7 +144,13 @@ func (w *Worker) connectMQTT() (mqtt.Client, error) {
 }
 
 func (w *Worker) loopMQTT() {
-	timer := time.NewTicker(5 * time.Second)
+	// Use a minimum of 5 second sample rate and attempt to adjust upwards
+	// for BackoffThreshold.
+	var sampleRate time.Duration = 5 * time.Second
+	if w.cfg.BackoffThreshold > 5 && w.cfg.BackoffThreshold >= 10 {
+		sampleRate = time.Duration(w.cfg.BackoffThreshold-5) * time.Second
+	}
+	timer := time.NewTicker(sampleRate)
 
 	defer func() {
 		timer.Stop()
@@ -170,6 +176,7 @@ func (w *Worker) loopMQTT() {
 			currentState, err := w.evseCli.GetCurrentCapacityInfo()
 			if err != nil {
 				log.Errorf("failed to get current state from RAPI: %+v", err)
+				w.mux.Unlock()
 				continue
 			}
 			w.status.currentAmpSetting = currentState.CurrentMaxAmps
@@ -212,7 +219,7 @@ func (w *Worker) fetchStatusFromAPI() (chargerStatus, error) {
 	return chargerStatus{
 		currentUsage:      float64(uint64(usage) * w.cfg.ElectricalPresure),
 		currentAmpSetting: currentCapacity.CurrentMaxAmps,
-		enabled:           state.State == 1,
+		enabled:           state.State != 254 && state.State != 255,
 	}, nil
 }
 
@@ -234,7 +241,13 @@ func (w *Worker) initState() error {
 }
 
 func (w *Worker) loopHTTP() {
-	timer := time.NewTicker(5 * time.Second)
+	// Use a minimum of 5 second sample rate and attempt to adjust upwards
+	// for BackoffThreshold.
+	var sampleRate time.Duration = 5 * time.Second
+	if w.cfg.BackoffThreshold > 5 && w.cfg.BackoffThreshold >= 10 {
+		sampleRate = time.Duration(w.cfg.BackoffThreshold-5) * time.Second
+	}
+	timer := time.NewTicker(sampleRate)
 
 	defer func() {
 		timer.Stop()
@@ -251,6 +264,7 @@ func (w *Worker) loopHTTP() {
 			state, err := w.fetchStatusFromAPI()
 			if err != nil {
 				log.Errorf("failed to fetch status: %q", err)
+				w.mux.Unlock()
 				continue
 			}
 			w.status = state

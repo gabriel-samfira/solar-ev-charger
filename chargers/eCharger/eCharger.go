@@ -193,6 +193,7 @@ func (w *Worker) loopHTTP() {
 			state, err := w.fetchStatusFromAPI()
 			if err != nil {
 				log.Errorf("failed to fetch status: %q", err)
+				w.mux.Unlock()
 				continue
 			}
 			w.status = state
